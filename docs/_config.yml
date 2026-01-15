@@ -1,22 +1,18 @@
-title: CAIR Code Guide
-description: Coding standards and best practices for CAIR projects
-baseurl: "/CAIR-CodeGuide"
-url: ""
+# GitHub Pages Jekyll Configuration
+# This file tells GitHub Pages not to use Jekyll processing
+
+# We're using vanilla HTML/CSS/JS, so we disable Jekyll
 markdown: kramdown
-permalink: /:path/
+plugins:
+  - jekyll-relative-links
 
-# Use a custom layout; no built-in theme required
-theme: minima
-
-# Show future posts (not used here)
-future: false
-
-# Exclude files that shouldn't be published
+# Exclude files from processing
 exclude:
+  - convert-to-json.py
   - README.md
-  - .github
+  - DEPLOYMENT.md
+  - .gitignore
 
-# Syntax highlighting and markdown
-highlighter: rouge
-kramdown:
-  input: GFM
+# Include these patterns
+include:
+  - .gitignore
