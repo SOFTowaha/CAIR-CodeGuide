@@ -1,0 +1,18 @@
+# GitHub Pages Jekyll Configuration
+# This file tells GitHub Pages not to use Jekyll processing
+
+# We're using vanilla HTML/CSS/JS, so we disable Jekyll
+markdown: kramdown
+plugins:
+  - jekyll-relative-links
+
+# Exclude files from processing
+exclude:
+  - convert-to-json.py
+  - README.md
+  - DEPLOYMENT.md
+  - .gitignore
+
+# Include these patterns
+include:
+  - .gitignore
