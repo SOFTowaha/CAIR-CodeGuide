@@ -1,4 +1,5 @@
 # CAIR Coding Guide
+[Click here for the Web Version](https://cair-mun.github.io/CAIR-CodeGuide/)
 
 Welcome to the official coding standards and development guide for this organisation.
 
