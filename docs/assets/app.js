@@ -1,417 +1,210 @@
 /**
- * CAIR Coding Guide - Main Application
- * Loads content from JSON and renders it dynamically
+ * CAIR Coding Guide — Application
+ * Loads chapter content from JSON and renders it dynamically.
  */
 
-// Global state
 let guideData = null;
-let currentChapter = null;
+let currentChapterId = null;
 
-// DOM Elements
-const elements = {
-  loading: document.getElementById ('loading'),
-  article: document.getElementById ('article'),
-  navMenu: document.getElementById ('navMenu'),
-  tocMenu: document.getElementById ('tocMenu'),
-  searchInput: document.getElementById ('searchInput'),
-  sidebar: document.getElementById ('sidebar'),
-  mobileMenuToggle: document.getElementById ('mobileMenuToggle'),
-  themeToggle: document.getElementById ('themeToggle'),
-  lastUpdated: document.getElementById ('lastUpdated'),
+const el = {
+  loading:           document.getElementById('loading'),
+  article:           document.getElementById('article'),
+  navMenu:           document.getElementById('navMenu'),
+  tocMenu:           document.getElementById('tocMenu'),
+  searchInput:       document.getElementById('searchInput'),
+  sidebar:           document.getElementById('sidebar'),
+  mobileMenuToggle:  document.getElementById('mobileMenuToggle'),
+  themeToggle:       document.getElementById('themeToggle'),
+  lastUpdated:       document.getElementById('lastUpdated'),
 };
 
-/**
- * Initialize the application
- */
-async function init () {
+async function init() {
   try {
-    // Initialize theme
-    initTheme ();
-
-    // Load guide data from JSON
-    await loadGuideData ();
-
-    // Render navigation menu
-    renderNavigation ();
-
-    // Set up event listeners
-    setupEventListeners ();
-
-    // Load initial chapter from URL hash or default to home
-    const hash = window.location.hash.slice (1) || 'home';
-    loadChapter (hash);
-
-    // Update last updated date
-    elements.lastUpdated.textContent = guideData.lastUpdated;
-  } catch (error) {
-    console.error ('Failed to initialize app:', error);
-    showError ('Failed to load coding guide. Please refresh the page.');
+    initTheme();
+    await loadGuideData();
+    renderNavigation();
+    setupEventListeners();
+    const hash = window.location.hash.slice(1) || 'home';
+    loadChapter(hash);
+    if (el.lastUpdated) el.lastUpdated.textContent = guideData.lastUpdated;
+  } catch (err) {
+    console.error('Failed to initialize app:', err);
+    showError('Failed to load the coding guide. Please refresh the page.');
   }
 }
 
-/**
- * Initialize theme from localStorage or system preference
- */
-function initTheme () {
-  const savedTheme = localStorage.getItem ('theme');
-  const prefersDark = window.matchMedia ('(prefers-color-scheme: dark)')
-    .matches;
-
-  if (savedTheme) {
-    document.documentElement.setAttribute ('data-theme', savedTheme);
-  } else if (prefersDark) {
-    document.documentElement.setAttribute ('data-theme', 'dark');
-  }
+function initTheme() {
+  const saved = localStorage.getItem('theme');
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved || (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
 }
 
-/**
- * Toggle between light and dark theme
- */
-function toggleTheme () {
-  const currentTheme = document.documentElement.getAttribute ('data-theme');
-  const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
-
-  document.documentElement.setAttribute ('data-theme', newTheme);
-  localStorage.setItem ('theme', newTheme);
+function toggleTheme() {
+  const current = document.documentElement.getAttribute('data-theme');
+  const next = current === 'dark' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
 }
 
-/**
- * Load guide data from JSON file
- */
-async function loadGuideData () {
-  try {
-    const response = await fetch ('data/codeguide.json');
-    if (!response.ok) {
-      throw new Error (`HTTP error! status: ${response.status}`);
-    }
-    guideData = await response.json ();
-  } catch (error) {
-    console.error ('Error loading guide data:', error);
-    throw error;
-  }
+async function loadGuideData() {
+  const res = await fetch('data/codeguide.json');
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  guideData = await res.json();
 }
 
-/**
- * Render navigation menu from guide data
- */
-function renderNavigation () {
-  if (!guideData || !guideData.chapters) return;
-
-  const navHTML = guideData.chapters
-    .sort ((a, b) => a.order - b.order)
-    .map (
-      chapter => `
-            <li class="nav-item">
-                <a href="#${chapter.id}" 
-                   class="nav-link" 
-                   data-chapter="${chapter.id}">
-                    ${chapter.title}
-                </a>
-            </li>
-        `
-    )
-    .join ('');
-
-  elements.navMenu.innerHTML = navHTML;
+function renderNavigation(chapters) {
+  const list = (chapters || guideData.chapters)
+    .slice()
+    .sort((a, b) => a.order - b.order)
+    .map(ch => `
+      <li class="nav-item">
+        <a href="#${ch.id}" class="nav-link" data-chapter="${ch.id}">${ch.title}</a>
+      </li>`)
+    .join('');
+  el.navMenu.innerHTML = list;
 }
 
-/**
- * Load and display a chapter
- */
-function loadChapter (chapterId) {
+function loadChapter(id) {
   if (!guideData) return;
+  const chapter = guideData.chapters.find(ch => ch.id === id);
+  if (!chapter) { showError('Chapter not found.'); return; }
 
-  const chapter = guideData.chapters.find (ch => ch.id === chapterId);
+  currentChapterId = id;
+  history.pushState(null, '', `#${id}`);
 
-  if (!chapter) {
-    showError ('Chapter not found');
-    return;
-  }
+  renderChapter(chapter);
+  updateActiveNav(id);
+  generateTOC();
 
-  currentChapter = chapter;
-
-  // Update URL hash without scrolling
-  history.pushState (null, null, `#${chapterId}`);
-
-  // Render chapter content
-  renderChapter (chapter);
-
-  // Update active navigation
-  updateActiveNav (chapterId);
-
-  // Generate table of contents
-  generateTOC ();
-
-  // Hide loading, show article
-  elements.loading.style.display = 'none';
-  elements.article.classList.add ('visible');
-
-  // Scroll to top
-  window.scrollTo (0, 0);
-
-  // Close mobile menu if open
-  elements.sidebar.classList.remove ('open');
+  el.loading.style.display = 'none';
+  el.article.classList.add('visible');
+  window.scrollTo(0, 0);
+  el.sidebar.classList.remove('open');
 }
 
-/**
- * Render chapter content
- */
-function renderChapter (chapter) {
-  // Configure marked options
-  marked.setOptions ({
-    highlight: function (code, lang) {
-      if (lang && hljs.getLanguage (lang)) {
-        try {
-          return hljs.highlight (code, {language: lang}).value;
-        } catch (err) {
-          console.error ('Highlight error:', err);
-        }
+function renderChapter(chapter) {
+  marked.setOptions({
+    highlight(code, lang) {
+      if (lang && hljs.getLanguage(lang)) {
+        try { return hljs.highlight(code, { language: lang }).value; } catch (_) {}
       }
-      return hljs.highlightAuto (code).value;
+      return hljs.highlightAuto(code).value;
     },
     breaks: true,
     gfm: true,
   });
 
-  // Parse markdown to HTML
-  const html = marked.parse (chapter.content);
-
-  // Render to article
-  elements.article.innerHTML = html;
-
-  // Apply syntax highlighting to any remaining code blocks
-  elements.article.querySelectorAll ('pre code').forEach (block => {
-    hljs.highlightElement (block);
-  });
+  el.article.innerHTML = marked.parse(chapter.content);
+  el.article.querySelectorAll('pre code').forEach(block => hljs.highlightElement(block));
 }
 
-/**
- * Update active navigation item
- */
-function updateActiveNav (chapterId) {
-  // Remove active class from all nav links
-  elements.navMenu.querySelectorAll ('.nav-link').forEach (link => {
-    link.classList.remove ('active');
-  });
-
-  // Add active class to current chapter
-  const activeLink = elements.navMenu.querySelector (
-    `[data-chapter="${chapterId}"]`
-  );
-  if (activeLink) {
-    activeLink.classList.add ('active');
-
-    // Scroll nav item into view
-    activeLink.scrollIntoView ({block: 'nearest', behavior: 'smooth'});
+function updateActiveNav(id) {
+  el.navMenu.querySelectorAll('.nav-link').forEach(a => a.classList.remove('active'));
+  const active = el.navMenu.querySelector(`[data-chapter="${id}"]`);
+  if (active) {
+    active.classList.add('active');
+    active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
   }
 }
 
-/**
- * Generate table of contents from headings
- */
-function generateTOC () {
-  const headings = elements.article.querySelectorAll ('h2, h3');
-
-  if (headings.length === 0) {
-    elements.tocMenu.innerHTML =
-      '<p style="color: var(--text-secondary); font-size: 0.875rem;">No headings found</p>';
+function generateTOC() {
+  const headings = el.article.querySelectorAll('h2, h3');
+  if (!headings.length) {
+    el.tocMenu.innerHTML = '';
     return;
   }
 
-  const tocHTML = Array.from (headings)
-    .map ((heading, index) => {
-      const level = heading.tagName.toLowerCase ();
-      const text = heading.textContent;
-      const id = `heading-${index}`;
+  el.tocMenu.innerHTML = Array.from(headings).map((h, i) => {
+    const id = `h-${i}`;
+    h.id = id;
+    return `<li><a href="#${id}" class="toc-link level-${h.tagName[1]}" data-heading="${id}">${h.textContent}</a></li>`;
+  }).join('');
 
-      // Add ID to heading for linking
-      heading.id = id;
-
-      return `
-            <li>
-                <a href="#${id}" 
-                   class="toc-link level-${level.charAt (1)}" 
-                   data-heading="${id}">
-                    ${text}
-                </a>
-            </li>
-        `;
-    })
-    .join ('');
-
-  elements.tocMenu.innerHTML = tocHTML;
-
-  // Set up TOC click handlers
-  elements.tocMenu.querySelectorAll ('.toc-link').forEach (link => {
-    link.addEventListener ('click', e => {
-      e.preventDefault ();
-      const targetId = link.getAttribute ('href').slice (1);
-      const target = document.getElementById (targetId);
+  el.tocMenu.querySelectorAll('.toc-link').forEach(a => {
+    a.addEventListener('click', e => {
+      e.preventDefault();
+      const target = document.getElementById(a.dataset.heading);
       if (target) {
-        target.scrollIntoView ({behavior: 'smooth', block: 'start'});
-        updateActiveTOC (targetId);
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        updateActiveTOC(a.dataset.heading);
       }
     });
   });
 
-  // Set up scroll spy for TOC
-  setupScrollSpy ();
+  setupScrollSpy();
 }
 
-/**
- * Update active TOC item
- */
-function updateActiveTOC (headingId) {
-  elements.tocMenu.querySelectorAll ('.toc-link').forEach (link => {
-    link.classList.remove ('active');
-  });
+function updateActiveTOC(id) {
+  el.tocMenu.querySelectorAll('.toc-link').forEach(a => a.classList.remove('active'));
+  const active = el.tocMenu.querySelector(`[data-heading="${id}"]`);
+  if (active) active.classList.add('active');
+}
 
-  const activeLink = elements.tocMenu.querySelector (
-    `[data-heading="${headingId}"]`
+function setupScrollSpy() {
+  const headings = el.article.querySelectorAll('h2, h3');
+  const observer = new IntersectionObserver(
+    entries => { entries.forEach(e => { if (e.isIntersecting) updateActiveTOC(e.target.id); }); },
+    { rootMargin: '-80px 0px -70% 0px' }
   );
-  if (activeLink) {
-    activeLink.classList.add ('active');
-  }
+  headings.forEach(h => observer.observe(h));
 }
 
-/**
- * Set up scroll spy for TOC
- */
-function setupScrollSpy () {
-  const headings = elements.article.querySelectorAll ('h2, h3');
-
-  const observer = new IntersectionObserver (
-    entries => {
-      entries.forEach (entry => {
-        if (entry.isIntersecting) {
-          updateActiveTOC (entry.target.id);
-        }
-      });
-    },
-    {
-      rootMargin: '-80px 0px -80% 0px',
-    }
+function handleSearch(query) {
+  if (!query.trim()) { renderNavigation(); return; }
+  const q = query.toLowerCase();
+  const matched = guideData.chapters.filter(
+    ch => ch.title.toLowerCase().includes(q) || ch.content.toLowerCase().includes(q)
   );
-
-  headings.forEach (heading => observer.observe (heading));
-}
-
-/**
- * Search functionality
- */
-function handleSearch (query) {
-  if (!query.trim ()) {
-    renderNavigation ();
+  if (!matched.length) {
+    el.navMenu.innerHTML = '<li style="padding:0.75rem 1.25rem;font-size:0.875rem;color:var(--text-muted)">No results</li>';
     return;
   }
-
-  const searchTerm = query.toLowerCase ();
-  const filteredChapters = guideData.chapters.filter (
-    chapter =>
-      chapter.title.toLowerCase ().includes (searchTerm) ||
-      chapter.content.toLowerCase ().includes (searchTerm)
-  );
-
-  if (filteredChapters.length === 0) {
-    elements.navMenu.innerHTML =
-      '<p style="padding: 1rem; color: var(--text-secondary); font-size: 0.875rem;">No results found</p>';
-    return;
-  }
-
-  const navHTML = filteredChapters
-    .sort ((a, b) => a.order - b.order)
-    .map (chapter => {
-      const highlightedTitle = highlightText (chapter.title, searchTerm);
-      return `
-                <li class="nav-item">
-                    <a href="#${chapter.id}" 
-                       class="nav-link" 
-                       data-chapter="${chapter.id}">
-                        ${highlightedTitle}
-                    </a>
-                </li>
-            `;
-    })
-    .join ('');
-
-  elements.navMenu.innerHTML = navHTML;
+  renderNavigation(matched);
 }
 
-/**
- * Highlight search term in text
- */
-function highlightText (text, searchTerm) {
-  const regex = new RegExp (`(${searchTerm})`, 'gi');
-  return text.replace (regex, '<mark>$1</mark>');
-}
+function setupEventListeners() {
+  el.themeToggle.addEventListener('click', toggleTheme);
 
-/**
- * Set up event listeners
- */
-function setupEventListeners () {
-  // Theme toggle
-  elements.themeToggle.addEventListener ('click', toggleTheme);
-
-  // Navigation clicks
-  elements.navMenu.addEventListener ('click', e => {
-    if (e.target.classList.contains ('nav-link')) {
-      e.preventDefault ();
-      const chapterId = e.target.dataset.chapter;
-      loadChapter (chapterId);
-    }
+  el.navMenu.addEventListener('click', e => {
+    const link = e.target.closest('.nav-link');
+    if (link) { e.preventDefault(); loadChapter(link.dataset.chapter); }
   });
 
-  // Search input
-  let searchTimeout;
-  elements.searchInput.addEventListener ('input', e => {
-    clearTimeout (searchTimeout);
-    searchTimeout = setTimeout (() => {
-      handleSearch (e.target.value);
-    }, 300);
+  let searchTimer;
+  el.searchInput.addEventListener('input', e => {
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => handleSearch(e.target.value), 280);
   });
 
-  // Hash change (browser back/forward)
-  window.addEventListener ('hashchange', () => {
-    const hash = window.location.hash.slice (1) || 'home';
-    loadChapter (hash);
+  window.addEventListener('hashchange', () => {
+    loadChapter(window.location.hash.slice(1) || 'home');
   });
 
-  // Mobile menu toggle
-  elements.mobileMenuToggle.addEventListener ('click', () => {
-    elements.sidebar.classList.toggle ('open');
-  });
+  el.mobileMenuToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
-  // Close mobile menu when clicking outside
-  document.addEventListener ('click', e => {
-    if (window.innerWidth <= 768) {
-      if (
-        !elements.sidebar.contains (e.target) &&
-        !elements.mobileMenuToggle.contains (e.target) &&
-        elements.sidebar.classList.contains ('open')
-      ) {
-        elements.sidebar.classList.remove ('open');
-      }
+  document.addEventListener('click', e => {
+    if (window.innerWidth <= 768
+      && !el.sidebar.contains(e.target)
+      && !el.mobileMenuToggle.contains(e.target)
+      && el.sidebar.classList.contains('open')) {
+      el.sidebar.classList.remove('open');
     }
   });
 }
 
-/**
- * Show error message
- */
-function showError (message) {
-  elements.article.innerHTML = `
-        <div style="padding: 2rem; text-align: center;">
-            <h2 style="color: #ef4444; margin-bottom: 1rem;">Error</h2>
-            <p style="color: var(--text-secondary);">${message}</p>
-        </div>
-    `;
-  elements.loading.style.display = 'none';
-  elements.article.classList.add ('visible');
+function showError(msg) {
+  el.article.innerHTML = `
+    <div style="padding:3rem;text-align:center">
+      <h2 style="color:#ef4444;margin-bottom:1rem">Something went wrong</h2>
+      <p style="color:var(--text-muted)">${msg}</p>
+    </div>`;
+  el.loading.style.display = 'none';
+  el.article.classList.add('visible');
 }
 
-// Initialize app when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener ('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', init);
 } else {
-  init ();
+  init();
 }
